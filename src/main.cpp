@@ -8,13 +8,14 @@
 #define WATER_COUNTER1_PIN 2
 #define TEMP1_PIN A0
 
-boolean water1 = false;
-unsigned long water1_pulses = 0;
-boolean water2 = false;
-unsigned long water2_pulses = 0;
+volatile boolean water1 = false;
+volatile uint32_t water1_pulses = 0;
+volatile boolean water2 = false;
+volatile uint32_t  water2_pulses = 0;
 
-unsigned long last_periodic_send = 0;
+volatile uint32_t last_periodic_send = 0;
 int periodic_send_interval_secs = 2;
+
 std::deque<float> temp1 = {};
 
 WiFiClient espClient;
@@ -171,12 +172,37 @@ void setup_mqtt() {
   client.setCallback(on_message);
 }
 
+
+int usToTicks(int us) {
+  return (clockCyclesPerMicrosecond() * us);     // converts microseconds to tick
+}
+
+int ticksToUs(int ticks) {
+  return (ticks / clockCyclesPerMicrosecond()); // converts from ticks back to microseconds
+}
+
+void timer_trigged() {
+  if (water2) {
+    water2_pulses++;
+  }
+
+  //
+  // Do some timings with ESP.getCycleCount()
+  //  see: https://github.com/adafruit/Adafruit-Flow-Meter/blob/master/Adafruit_FlowMeter.pde
+  //
+  timer0_write(ESP.getCycleCount() + usToTicks(1000));
+}
+
 void setup_hardware() {
   last_periodic_send = millis();
   pinMode(WATER1_PIN, OUTPUT);
   pinMode(WATER2_PIN, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
   control_water_valves();
+
+  timer0_isr_init();
+  timer0_attachInterrupt(timer_trigged);
+  timer0_write(ESP.getCycleCount() + usToTicks(1000));
 }
 
 void setup() {
