@@ -6,13 +6,16 @@
 
 #define WATER1_PIN 13
 #define WATER2_PIN 15
+#define WATER_COUNTER1_PIN 2
 #define TEMP1_PIN A0
 
 boolean water1 = false;
+unsigned long water1_pulses = 0;
 boolean water2 = false;
+unsigned long water2_amount = 0;
 
-unsigned long last_temp_read = 0;
-int temp_read_interval_secs = 2;
+unsigned long last_periodic_send = 0;
+int periodic_send_interval_secs = 2;
 std::deque<float> temp1 = {};
 
 int door_pos = 0;
@@ -20,6 +23,12 @@ Servo door_servo;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+void water1_pulse_received()
+{
+  water1_pulses++;
+}
+
 
 void control_water_valves() {
     digitalWrite(WATER1_PIN, water1 ? HIGH : LOW);
@@ -151,9 +160,10 @@ void setup_mqtt() {
 }
 
 void setup_hardware() {
-  last_temp_read = millis();
+  last_periodic_send = millis();
   pinMode(WATER1_PIN, OUTPUT);
   pinMode(WATER2_PIN, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
   control_water_valves();
   door_servo.attach(16);
   control_door(0);
@@ -168,11 +178,13 @@ void setup() {
   setup_mqtt();
 }
 
-void read_temp() {
-  if (millis() < last_temp_read + (1000 * temp_read_interval_secs)) {
+void publish_periodic_data() {
+  if (millis() < last_periodic_send + (1000 * periodic_send_interval_secs)) {
     return;
   }
-  last_temp_read = millis();
+  last_periodic_send = millis();
+
+  
   int sensor_val = analogRead(TEMP1_PIN);
   float voltage = (sensor_val / 1024.0) * 1.0;
   float temp = (voltage - 0.5) * 100;
@@ -189,6 +201,11 @@ void read_temp() {
   Serial.print(" degrees ");
   Serial.println(temp);
   */
+
+  /* Water flow */
+  unsigned long milliliters = (unsigned long) (water1_pulses / 0.47);
+  client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(milliliters) + "}").c_str());
+
 }
 
 void loop() {
@@ -196,5 +213,5 @@ void loop() {
     reconnect_mqtt();
   }
   client.loop();
-  read_temp();
+  publish_periodic_data();
 }
