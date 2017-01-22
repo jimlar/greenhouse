@@ -22,17 +22,13 @@ PubSubClient client(espClient);
 
 void water1_pulse_received()
 {
-  water1_pulses++;
+  if (water1) {
+    water1_pulses++;
+  }
 }
 
 
 void control_water_valves() {
-    if (!water1) {
-      water1_pulses = 0;
-    }
-    if (!water2) {
-      water2_pulses = 0;
-    }
     digitalWrite(WATER1_PIN, water1 ? HIGH : LOW);
     digitalWrite(WATER2_PIN, water2 ? HIGH : LOW);
 }
@@ -96,12 +92,18 @@ void publish_all_status() {
 }
 
 void set_water1(boolean on) {
+  if (on && !water1) {
+    water1_pulses = 0;
+  }
   water1 = on;
   control_water_valves();
   client.publish("/IoTmanager/gh/water1/status", boolean_as_status(water1));
 }
 
 void set_water2(boolean on) {
+  if (on && !water2) {
+    water2_pulses = 0;
+  }
   water2 = on;
   control_water_valves();
   client.publish("/IoTmanager/gh/water2/status", boolean_as_status(water2));
