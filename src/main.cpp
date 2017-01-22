@@ -1,6 +1,5 @@
 #include <deque>
 #include <ESP8266WiFi.h>
-#include <Servo.h>
 #include <PubSubClient.h>
 #include "settings.h"
 
@@ -12,14 +11,11 @@
 boolean water1 = false;
 unsigned long water1_pulses = 0;
 boolean water2 = false;
-unsigned long water2_amount = 0;
+unsigned long water2_pulses = 0;
 
 unsigned long last_periodic_send = 0;
 int periodic_send_interval_secs = 2;
 std::deque<float> temp1 = {};
-
-int door_pos = 0;
-Servo door_servo;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -31,15 +27,14 @@ void water1_pulse_received()
 
 
 void control_water_valves() {
+    if (!water1) {
+      water1_pulses = 0;
+    }
+    if (!water2) {
+      water2_pulses = 0;
+    }
     digitalWrite(WATER1_PIN, water1 ? HIGH : LOW);
     digitalWrite(WATER2_PIN, water2 ? HIGH : LOW);
-}
-
-void control_door(int new_pos) {
-  door_pos = new_pos;
-  float fraction = new_pos / 1024.0;
-  int servo_pos = (int) (fraction * 180);
-  door_servo.write(servo_pos);
 }
 
 const char* boolean_as_status(boolean b) {
@@ -65,7 +60,18 @@ void publish_configs() {
   client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\":\"Water 2\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water2\",\"color\":\"green\"}");
   client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\":\"Temperature\", \"widget\":\"small-badge\"}");
   client.publish("/IoTmanager/gh/config", "{\"id\":\"3\", \"descr\": \"Temp\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/temp1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 20}}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Door\", \"widget\":\"range\", \"topic\":\"/IoTmanager/gh/door\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Water amount 1 (milliliters)\", \"widget\":\"small-badge\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Water amount 1\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Water amount 2 (milliliters)\", \"widget\":\"small-badge\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"7\", \"descr\": \"Water amount 2\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount2\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
+}
+
+void publish_water_flow() {
+    unsigned long milliliters1 = (unsigned long) (water1_pulses / 0.47);
+    client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(milliliters1) + "}").c_str());
+
+    unsigned long milliliters2 = (unsigned long) (water2_pulses / 0.47);
+    client.publish("/IoTmanager/gh/water_amount2/status", ("{\"status\": " + String(milliliters2) + "}").c_str());
 }
 
 void publish_all_status() {
@@ -74,7 +80,7 @@ void publish_all_status() {
   for (float v: temp1) {
     client.publish("/IoTmanager/gh/temp1/status", ("{\"status\": " + String(v) + "}").c_str());
   }
-  client.publish("/IoTmanager/gh/door/status", ("{\"status\": " + String(door_pos) + "}").c_str());
+  publish_water_flow();
 }
 
 void set_water1(boolean on) {
@@ -87,11 +93,6 @@ void set_water2(boolean on) {
   water2 = on;
   control_water_valves();
   client.publish("/IoTmanager/gh/water2/status", boolean_as_status(water2));
-}
-
-void set_door(int val) {
-  control_door(val);
-  client.publish("/IoTmanager/gh/door/status", ("{\"status\": " + String(val) + "}").c_str());
 }
 
 void on_message(char* topic, byte* payload, unsigned int length) {
@@ -109,9 +110,6 @@ void on_message(char* topic, byte* payload, unsigned int length) {
 
   } else if (topics == "/IoTmanager/gh/water2/control") {
     set_water2(pls == "1");
-
-  } else if (topics == "/IoTmanager/gh/door/control") {
-    set_door(pls.toInt());
   }
 
   free(pl);
@@ -165,8 +163,6 @@ void setup_hardware() {
   pinMode(WATER2_PIN, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
   control_water_valves();
-  door_servo.attach(16);
-  control_door(0);
 }
 
 void setup() {
@@ -184,7 +180,7 @@ void publish_periodic_data() {
   }
   last_periodic_send = millis();
 
-  
+
   int sensor_val = analogRead(TEMP1_PIN);
   float voltage = (sensor_val / 1024.0) * 1.0;
   float temp = (voltage - 0.5) * 100;
@@ -201,11 +197,7 @@ void publish_periodic_data() {
   Serial.print(" degrees ");
   Serial.println(temp);
   */
-
-  /* Water flow */
-  unsigned long milliliters = (unsigned long) (water1_pulses / 0.47);
-  client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(milliliters) + "}").c_str());
-
+  publish_water_flow();
 }
 
 void loop() {
