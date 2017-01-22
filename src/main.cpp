@@ -54,16 +54,28 @@ char* payload_to_string(byte *payload, unsigned int length) {
   return pl;
 }
 
+boolean water_graphs = false;
+
 void publish_configs() {
   client.publish("/IoTmanager", "gh");
   client.publish("/IoTmanager/gh/config", "{\"id\":\"0\", \"descr\":\"Water 1\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water1\",\"color\":\"green\"}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\":\"Water 2\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water2\",\"color\":\"green\"}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\":\"Temperature\", \"widget\":\"small-badge\"}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"3\", \"descr\": \"Temp\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/temp1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 20}}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Water amount 1 (milliliters)\", \"widget\":\"small-badge\"}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Water amount 1\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Water amount 2 (milliliters)\", \"widget\":\"small-badge\"}");
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"7\", \"descr\": \"Water amount 2\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount2\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
+  if (water_graphs) {
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\":\"Water amount 1 (milliliters)\", \"widget\":\"small-badge\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\": \"Water amount 1\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
+  } else {
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+  }
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"3\", \"descr\":\"Water 2\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water2\",\"color\":\"green\"}");
+
+  if (water_graphs) {
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Water amount 2 (milliliters)\", \"widget\":\"small-badge\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Water amount 2\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount2\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
+  } else {
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+  }
+
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Temperature\", \"widget\":\"small-badge\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"7\", \"descr\": \"Temp\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/temp1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 20, \"height\": \"70%\"}}");
 }
 
 void publish_water_flow() {
