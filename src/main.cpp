@@ -3,15 +3,26 @@
 #include <PubSubClient.h>
 #include "settings.h"
 
+#define TIMER1_TICKS_PER_US (APB_CLK_FREQ / 1000000L)
+#define FLOW_READ_INTERVAL_US 1000
+
 #define WATER1_PIN 13
 #define WATER2_PIN 15
 #define WATER_COUNTER1_PIN 2
+#define WATER_COUNTER2_PIN 12
 #define TEMP1_PIN A0
 
 volatile boolean water1 = false;
 volatile uint32_t water1_pulses = 0;
+volatile uint8_t last_counter1_pinstate = 0;
+volatile uint32_t last_counter1_flowratetimer = 0;
+volatile float counter1_flowrate = 0;
+
 volatile boolean water2 = false;
 volatile uint32_t  water2_pulses = 0;
+volatile uint8_t last_counter2_pinstate = 0;
+volatile uint32_t last_counter2_flowratetimer = 0;
+volatile float counter2_flowrate = 0;
 
 volatile uint32_t last_periodic_send = 0;
 int periodic_send_interval_secs = 2;
@@ -20,14 +31,6 @@ std::deque<float> temp1 = {};
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-void water1_pulse_received()
-{
-  if (water1) {
-    water1_pulses++;
-  }
-}
-
 
 void control_water_valves() {
     digitalWrite(WATER1_PIN, water1 ? HIGH : LOW);
@@ -61,6 +64,7 @@ void publish_configs() {
     client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\": \"Water amount 1\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
   } else {
     client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\": \"Flowrate (l/m)\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_flowrate1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
   }
   client.publish("/IoTmanager/gh/config", "{\"id\":\"3\", \"descr\":\"Water 2\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water2\",\"color\":\"green\"}");
 
@@ -77,10 +81,12 @@ void publish_configs() {
 
 void publish_water_flow() {
     unsigned long milliliters1 = (unsigned long) (water1_pulses / 0.47);
-    client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(milliliters1) + "}").c_str());
+    client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(water1_pulses) + "}").c_str());
+    client.publish("/IoTmanager/gh/water_flowrate1/status", ("{\"status\": " + String(counter1_flowrate / 7.5) + "}").c_str());
 
     unsigned long milliliters2 = (unsigned long) (water2_pulses / 0.47);
     client.publish("/IoTmanager/gh/water_amount2/status", ("{\"status\": " + String(milliliters2) + "}").c_str());
+    client.publish("/IoTmanager/gh/water_flowrate2/status", ("{\"status\": " + String(counter2_flowrate / 7.5) + "}").c_str());
 }
 
 void publish_all_status() {
@@ -96,6 +102,9 @@ void set_water1(boolean on) {
   if (on && !water1) {
     water1_pulses = 0;
   }
+  if (!on && water1) {
+    counter1_flowrate = 0;
+  }
   water1 = on;
   control_water_valves();
   client.publish("/IoTmanager/gh/water1/status", boolean_as_status(water1));
@@ -104,6 +113,9 @@ void set_water1(boolean on) {
 void set_water2(boolean on) {
   if (on && !water2) {
     water2_pulses = 0;
+  }
+  if (!on && water2) {
+    counter2_flowrate = 0;
   }
   water2 = on;
   control_water_valves();
@@ -172,37 +184,68 @@ void setup_mqtt() {
   client.setCallback(on_message);
 }
 
+void read_water1_pulses() {
+  uint8_t x = digitalRead(WATER_COUNTER1_PIN);
 
-int usToTicks(int us) {
-  return (clockCyclesPerMicrosecond() * us);     // converts microseconds to tick
+  if (x == last_counter1_pinstate) {
+    last_counter1_flowratetimer++;
+    return; // nothing changed!
+  }
+
+  if (x == HIGH) {
+    //low to high transition!
+    water1_pulses++;
+  }
+
+  last_counter1_pinstate = x;
+  counter1_flowrate = 1000.0 / last_counter1_flowratetimer;  // in hertz
+  last_counter1_flowratetimer = 0;
 }
 
-int ticksToUs(int ticks) {
-  return (ticks / clockCyclesPerMicrosecond()); // converts from ticks back to microseconds
-}
+void read_water2_pulses() {
+  uint8_t x = digitalRead(WATER_COUNTER2_PIN);
 
-void timer_trigged() {
-  if (water2) {
+  if (x == last_counter2_pinstate) {
+     return; // nothing changed!
+  }
+
+  if (x == HIGH) {
+    //low to high transition!
     water2_pulses++;
   }
 
-  //
-  // Do some timings with ESP.getCycleCount()
-  //  see: https://github.com/adafruit/Adafruit-Flow-Meter/blob/master/Adafruit_FlowMeter.pde
-  //
-  timer0_write(ESP.getCycleCount() + usToTicks(1000));
+  last_counter2_pinstate = x;
+  counter2_flowrate = 1000000.0 / (ESP.getCycleCount() - last_counter2_flowratetimer) / clockCyclesPerMicrosecond();  // in hertz
+  last_counter2_flowratetimer = ESP.getCycleCount();
+}
+
+void timer_trigged() {
+  if (water1) {
+    read_water1_pulses();
+  }
+//  if (water2) {
+//    read_water2_pulses();
+//  }
+//  timer0_write(ESP.getCycleCount() + usToTicks(1000));
+  timer1_write(TIMER1_TICKS_PER_US / 16 * FLOW_READ_INTERVAL_US);
 }
 
 void setup_hardware() {
   last_periodic_send = millis();
   pinMode(WATER1_PIN, OUTPUT);
   pinMode(WATER2_PIN, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
+  pinMode(WATER_COUNTER1_PIN, INPUT_PULLUP);
+  pinMode(WATER_COUNTER2_PIN, INPUT_PULLUP);
   control_water_valves();
 
-  timer0_isr_init();
-  timer0_attachInterrupt(timer_trigged);
-  timer0_write(ESP.getCycleCount() + usToTicks(1000));
+//  timer0_isr_init();
+//  timer0_attachInterrupt(timer_trigged);
+//  timer0_write(ESP.getCycleCount() + usToTicks(1000));
+
+  timer1_isr_init();
+  timer1_attachInterrupt(timer_trigged);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);
+  timer1_write(TIMER1_TICKS_PER_US / 16 * FLOW_READ_INTERVAL_US);
 }
 
 void setup() {
@@ -238,6 +281,8 @@ void publish_periodic_data() {
   Serial.println(temp);
   */
   publish_water_flow();
+  Serial.print("Flow: ");
+  Serial.println(counter1_flowrate);
 }
 
 void loop() {
