@@ -207,6 +207,8 @@ void setup_hardware() {
   pinMode(WATER2_PIN, OUTPUT);
   control_water_valves();
 
+  pinMode(WATER_COUNTER1_PIN, INPUT_PULLUP);
+  pinMode(WATER_COUNTER2_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER2_PIN), water2_pulse_received, FALLING);
 }
