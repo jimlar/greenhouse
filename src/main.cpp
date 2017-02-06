@@ -56,19 +56,19 @@ void publish_configs() {
   client.publish("/IoTmanager", "gh");
   client.publish("/IoTmanager/gh/config", "{\"id\":\"0\", \"descr\":\"Water 1\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water1\",\"color\":\"green\"}");
   if (water_graphs) {
-    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\":\"Water amount 1 (milliliters)\", \"widget\":\"small-badge\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\":\"Water amount 1 (liters)\", \"widget\":\"small-badge\"}");
     client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\": \"Water amount 1\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
   } else {
-    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"1\", \"descr\": \"Litres since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
     client.publish("/IoTmanager/gh/config", "{\"id\":\"2\", \"descr\": \"Flowrate (l/m)\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_flowrate1\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
   }
   client.publish("/IoTmanager/gh/config", "{\"id\":\"3\", \"descr\":\"Water 2\",\"widget\":\"toggle\",\"topic\":\"/IoTmanager/gh/water2\",\"color\":\"green\"}");
 
   if (water_graphs) {
-    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Water amount 2 (milliliters)\", \"widget\":\"small-badge\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\":\"Water amount 2 (liters)\", \"widget\":\"small-badge\"}");
     client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Water amount 2\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount2\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
   } else {
-    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\": \"Litres since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
     client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Flowrate (l/m)\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_flowrate2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
   }
 
@@ -77,12 +77,12 @@ void publish_configs() {
 }
 
 void publish_water_flow() {
-    unsigned long milliliters1 = (unsigned long) (water1_pulses / 0.47);
-    client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(water1_pulses) + "}").c_str());
+    float liters1 = (float) water1_pulses / PULSES_PER_LITER;
+    client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(liters1) + "}").c_str());
     client.publish("/IoTmanager/gh/water_flowrate1/status", ("{\"status\": " + String(counter1_flowrate) + "}").c_str());
 
-    unsigned long milliliters2 = (unsigned long) (water2_pulses / 0.47);
-    client.publish("/IoTmanager/gh/water_amount2/status", ("{\"status\": " + String(milliliters2) + "}").c_str());
+    float liters2 = (float) water2_pulses / PULSES_PER_LITER;
+    client.publish("/IoTmanager/gh/water_amount2/status", ("{\"status\": " + String(liters2) + "}").c_str());
     client.publish("/IoTmanager/gh/water_flowrate2/status", ("{\"status\": " + String(counter2_flowrate) + "}").c_str());
 }
 
