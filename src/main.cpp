@@ -69,6 +69,7 @@ void publish_configs() {
     client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Water amount 2\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/water_amount2\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 100}}");
   } else {
     client.publish("/IoTmanager/gh/config", "{\"id\":\"4\", \"descr\": \"Since on\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_amount2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
+    client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Flowrate (l/m)\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_flowrate2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
   }
 
   client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Temperature\", \"widget\":\"small-badge\"}");
@@ -78,11 +79,11 @@ void publish_configs() {
 void publish_water_flow() {
     unsigned long milliliters1 = (unsigned long) (water1_pulses / 0.47);
     client.publish("/IoTmanager/gh/water_amount1/status", ("{\"status\": " + String(water1_pulses) + "}").c_str());
-    client.publish("/IoTmanager/gh/water_flowrate1/status", ("{\"status\": " + String(counter1_flowrate / 7.5) + "}").c_str());
+    client.publish("/IoTmanager/gh/water_flowrate1/status", ("{\"status\": " + String(counter1_flowrate) + "}").c_str());
 
     unsigned long milliliters2 = (unsigned long) (water2_pulses / 0.47);
     client.publish("/IoTmanager/gh/water_amount2/status", ("{\"status\": " + String(milliliters2) + "}").c_str());
-    client.publish("/IoTmanager/gh/water_flowrate2/status", ("{\"status\": " + String(counter2_flowrate / 7.5) + "}").c_str());
+    client.publish("/IoTmanager/gh/water_flowrate2/status", ("{\"status\": " + String(counter2_flowrate) + "}").c_str());
 }
 
 void publish_all_status() {
@@ -243,15 +244,6 @@ void publish_periodic_data() {
   Serial.println(temp);
   */
   publish_water_flow();
-  Serial.print("Flow: ");
-  Serial.println(counter1_flowrate);
-  Serial.print("Flow2: ");
-  Serial.println(counter2_flowrate);
-
-  Serial.print("W1 pulses: ");
-  Serial.println(water1_pulses);
-  Serial.print("W2 pulses: ");
-  Serial.println(water2_pulses);
 }
 
 void loop() {
