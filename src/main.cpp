@@ -3,24 +3,20 @@
 #include <PubSubClient.h>
 #include "settings.h"
 
-#define TIMER1_TICKS_PER_US (APB_CLK_FREQ / 1000000L)
-#define FLOW_READ_INTERVAL_US 1000
-
+#define PULSES_PER_LITER 485
 #define WATER1_PIN 13
 #define WATER2_PIN 15
-#define WATER_COUNTER1_PIN 2
-#define WATER_COUNTER2_PIN 12
+#define WATER_COUNTER1_PIN 0
+#define WATER_COUNTER2_PIN 2
 #define TEMP1_PIN A0
 
 volatile boolean water1 = false;
 volatile uint32_t water1_pulses = 0;
-volatile uint8_t last_counter1_pinstate = 0;
 volatile uint32_t last_counter1_flowratetimer = 0;
 volatile float counter1_flowrate = 0;
 
 volatile boolean water2 = false;
 volatile uint32_t  water2_pulses = 0;
-volatile uint8_t last_counter2_pinstate = 0;
 volatile uint32_t last_counter2_flowratetimer = 0;
 volatile float counter2_flowrate = 0;
 
@@ -184,68 +180,34 @@ void setup_mqtt() {
   client.setCallback(on_message);
 }
 
-void read_water1_pulses() {
-  uint8_t x = digitalRead(WATER_COUNTER1_PIN);
+void water1_pulse_received() {
+  float time_since_last_pulse_us = (ESP.getCycleCount() - last_counter1_flowratetimer) / clockCyclesPerMicrosecond();
+  float counter1_flowrate_hz = 1000000.0 / time_since_last_pulse_us;
 
-  if (x == last_counter1_pinstate) {
-    last_counter1_flowratetimer++;
-    return; // nothing changed!
-  }
-
-  if (x == HIGH) {
-    //low to high transition!
-    water1_pulses++;
-  }
-
-  last_counter1_pinstate = x;
-  counter1_flowrate = 1000.0 / last_counter1_flowratetimer;  // in hertz
-  last_counter1_flowratetimer = 0;
+  // See: https://www.adafruit.com/products/833
+  counter1_flowrate = (counter1_flowrate_hz + 3) / (PULSES_PER_LITER / 60);
+  water1_pulses++;
+  last_counter1_flowratetimer = ESP.getCycleCount();
 }
 
-void read_water2_pulses() {
-  uint8_t x = digitalRead(WATER_COUNTER2_PIN);
+void water2_pulse_received() {
+  float time_since_last_pulse_us = (ESP.getCycleCount() - last_counter2_flowratetimer) / clockCyclesPerMicrosecond();
+  float counter2_flowrate_hz = 1000000.0 / time_since_last_pulse_us;
 
-  if (x == last_counter2_pinstate) {
-     return; // nothing changed!
-  }
-
-  if (x == HIGH) {
-    //low to high transition!
-    water2_pulses++;
-  }
-
-  last_counter2_pinstate = x;
-  counter2_flowrate = 1000000.0 / (ESP.getCycleCount() - last_counter2_flowratetimer) / clockCyclesPerMicrosecond();  // in hertz
+  // See: https://www.adafruit.com/products/833
+  counter2_flowrate = (counter2_flowrate_hz + 3) / (PULSES_PER_LITER / 60);
+  water2_pulses++;
   last_counter2_flowratetimer = ESP.getCycleCount();
-}
-
-void timer_trigged() {
-  if (water1) {
-    read_water1_pulses();
-  }
-//  if (water2) {
-//    read_water2_pulses();
-//  }
-//  timer0_write(ESP.getCycleCount() + usToTicks(1000));
-  timer1_write(TIMER1_TICKS_PER_US / 16 * FLOW_READ_INTERVAL_US);
 }
 
 void setup_hardware() {
   last_periodic_send = millis();
   pinMode(WATER1_PIN, OUTPUT);
   pinMode(WATER2_PIN, OUTPUT);
-  pinMode(WATER_COUNTER1_PIN, INPUT_PULLUP);
-  pinMode(WATER_COUNTER2_PIN, INPUT_PULLUP);
   control_water_valves();
 
-//  timer0_isr_init();
-//  timer0_attachInterrupt(timer_trigged);
-//  timer0_write(ESP.getCycleCount() + usToTicks(1000));
-
-  timer1_isr_init();
-  timer1_attachInterrupt(timer_trigged);
-  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);
-  timer1_write(TIMER1_TICKS_PER_US / 16 * FLOW_READ_INTERVAL_US);
+  attachInterrupt(digitalPinToInterrupt(WATER_COUNTER1_PIN), water1_pulse_received, FALLING);
+  attachInterrupt(digitalPinToInterrupt(WATER_COUNTER2_PIN), water2_pulse_received, FALLING);
 }
 
 void setup() {
@@ -283,6 +245,13 @@ void publish_periodic_data() {
   publish_water_flow();
   Serial.print("Flow: ");
   Serial.println(counter1_flowrate);
+  Serial.print("Flow2: ");
+  Serial.println(counter2_flowrate);
+
+  Serial.print("W1 pulses: ");
+  Serial.println(water1_pulses);
+  Serial.print("W2 pulses: ");
+  Serial.println(water2_pulses);
 }
 
 void loop() {
