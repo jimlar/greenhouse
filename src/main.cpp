@@ -1,14 +1,20 @@
 #include <deque>
 #include <ESP8266WiFi.h>
+#include <SPI.h>
+#include <Wire.h>
 #include <PubSubClient.h>
 #include "settings.h"
+#include <U8g2lib.h>
 
 #define PULSES_PER_LITER 485
-#define WATER1_PIN 13
-#define WATER2_PIN 15
-#define WATER_COUNTER1_PIN 0
-#define WATER_COUNTER2_PIN 2
+#define WATER1_PIN D5
+#define WATER2_PIN D6
+#define WATER_COUNTER1_PIN D3
+#define WATER_COUNTER2_PIN D7
 #define TEMP1_PIN A0
+
+// Wemos min d1 oled shield
+U8G2_SSD1306_64X48_ER_F_SW_I2C u8g2(U8G2_R0, SCL, SDA);
 
 volatile boolean water1 = false;
 volatile uint32_t water1_pulses = 0;
@@ -213,7 +219,20 @@ void setup_hardware() {
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER2_PIN), water2_pulse_received, FALLING);
 }
 
+void setup_display() {
+  u8g2.begin();
+  u8g2.setFont(u8g2_font_6x10_tf);
+
+  u8g2.firstPage();
+  do {
+    u8g2.setCursor(0, 9);
+    u8g2.print("Boot...");
+  } while ( u8g2.nextPage() );
+}
+
+
 void setup() {
+  setup_display();
   Serial.begin(115200);
   delay(100);
   Serial.println();
