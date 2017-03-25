@@ -3,18 +3,24 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <PubSubClient.h>
-#include "settings.h"
 #include <U8g2lib.h>
+#include <DHT.h>
+
+#include "settings.h"
 
 #define PULSES_PER_LITER 485
 #define WATER1_PIN D5
 #define WATER2_PIN D6
 #define WATER_COUNTER1_PIN D3
 #define WATER_COUNTER2_PIN D7
-#define TEMP1_PIN A0
+#define DHTPIN D4
 
-// Wemos min d1 oled shield
+
+// Wemos mini d1 oled shield
 U8G2_SSD1306_64X48_ER_F_SW_I2C u8g2(U8G2_R0, SCL, SDA);
+
+// Init DHT
+DHT dht(DHTPIN, DHT21);
 
 volatile boolean water1 = false;
 volatile uint32_t water1_pulses = 0;
@@ -30,6 +36,7 @@ volatile uint32_t last_periodic_send = 0;
 int periodic_send_interval_secs = 2;
 
 std::deque<float> temp1 = {};
+std::deque<float> hum1 = {};
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -78,8 +85,11 @@ void publish_configs() {
     client.publish("/IoTmanager/gh/config", "{\"id\":\"5\", \"descr\": \"Flowrate (l/m)\", \"widget\": \"anydata\", \"topic\": \"/IoTmanager/gh/water_flowrate2\",\"class1\":\"item no-border\",\"class3\":\"assertive\",\"style2\": \"font-size:16px;float:left\", \"style3\":\"font-size:20px;font-weight:bold;float:right\"}");
   }
 
-  client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Temperature\", \"widget\":\"small-badge\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"6\", \"descr\":\"Temperature (C)\", \"widget\":\"small-badge\"}");
   client.publish("/IoTmanager/gh/config", "{\"id\":\"7\", \"descr\": \"Temp\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/temp1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 20, \"height\": \"70%\"}}");
+
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"8\", \"descr\":\"Humidity (%)\", \"widget\":\"small-badge\"}");
+  client.publish("/IoTmanager/gh/config", "{\"id\":\"9\", \"descr\": \"Hum\", \"widget\": \"chart\", \"topic\": \"/IoTmanager/gh/hum1\", \"widgetConfig\": { \"type\": \"line\", \"maxCount\": 20, \"height\": \"70%\"}}");
 }
 
 void publish_water_flow() {
@@ -97,6 +107,9 @@ void publish_all_status() {
   client.publish("/IoTmanager/gh/water2/status", boolean_as_status(water2));
   for (float v: temp1) {
     client.publish("/IoTmanager/gh/temp1/status", ("{\"status\": " + String(v) + "}").c_str());
+  }
+  for (float v: hum1) {
+    client.publish("/IoTmanager/gh/hum1/status", ("{\"status\": " + String(v) + "}").c_str());
   }
   publish_water_flow();
 }
@@ -208,6 +221,8 @@ void water2_pulse_received() {
 }
 
 void setup_hardware() {
+  dht.begin();
+
   last_periodic_send = millis();
   pinMode(WATER1_PIN, OUTPUT);
   pinMode(WATER2_PIN, OUTPUT);
@@ -247,23 +262,24 @@ void publish_periodic_data() {
   }
   last_periodic_send = millis();
 
-
-  int sensor_val = analogRead(TEMP1_PIN);
-  float voltage = (sensor_val / 1024.0) * 1.0;
-  float temp = (voltage - 0.5) * 100;
-  temp1.push_back(temp);
-  if (temp1.size() > 20) {
-    temp1.pop_front();
+  float temp = dht.readTemperature();
+  if (!isnan(temp)) {
+    temp1.push_back(temp);
+    if (temp1.size() > 20) {
+      temp1.pop_front();
+    }
+    client.publish("/IoTmanager/gh/temp1/status", ("{\"status\": " + String(temp) + "}").c_str());
   }
-  client.publish("/IoTmanager/gh/temp1/status", ("{\"status\": " + String(temp) + "}").c_str());
-  /*
-  Serial.print("Temp sensor val ");
-  Serial.print(sensor_val);
-  Serial.print(" voltage ");
-  Serial.print(voltage);
-  Serial.print(" degrees ");
-  Serial.println(temp);
-  */
+
+  float hum = dht.readHumidity();
+  if (!isnan(hum)) {
+    hum1.push_back(hum);
+    if (hum1.size() > 20) {
+      hum1.pop_front();
+    }
+    client.publish("/IoTmanager/gh/hum1/status", ("{\"status\": " + String(hum) + "}").c_str());
+  }
+
   publish_water_flow();
 }
 
