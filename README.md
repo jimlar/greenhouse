@@ -25,3 +25,5 @@ Hooking up the solenoids to the Wemos D1 mini:
 
 Programming
 -----------
+* Copy settings_template.h to settings.h and edit with your settings for WIFI and MQTT.
+* Upload to wemos with your [PlatformIO](http://platformio.org/)
