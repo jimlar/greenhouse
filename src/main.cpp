@@ -2,6 +2,7 @@
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <Arduino.h>
 #include <PubSubClient.h>
 #include <U8g2lib.h>
 #include <DHT.h>
@@ -9,11 +10,11 @@
 #include "settings.h"
 
 #define PULSES_PER_LITER 485
-#define WATER1_PIN D5
-#define WATER2_PIN D6
+#define WATER1_PIN D8
+#define WATER2_PIN D5
 #define WATER_COUNTER1_PIN D3
 #define WATER_COUNTER2_PIN D7
-#define DHTPIN D4
+#define DHTPIN D6
 
 
 // Wemos mini d1 oled shield
@@ -40,6 +41,32 @@ std::deque<float> hum1 = {};
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+String status_wifi = "down";
+String status_mqtt = "down";
+
+void redraw_display() {
+    u8g2.firstPage();
+    do {
+      u8g2.setCursor(0, 10);
+      u8g2.print("WIFI: " + status_wifi);
+      u8g2.setCursor(0, 10 * 2);
+      u8g2.print("MQTT: " + status_mqtt);
+
+      u8g2.setCursor(0, 10 * 3);
+      if (water1)
+        u8g2.print("WATER1: ON");
+      else
+        u8g2.print("WATER1: OFF");
+
+      u8g2.setCursor(0, 10 * 4);
+      if (water2)
+        u8g2.print("WATER2: ON");
+      else
+        u8g2.print("WATER2: OFF");
+
+    } while ( u8g2.nextPage() );
+}
 
 void control_water_valves() {
     digitalWrite(WATER1_PIN, water1 ? HIGH : LOW);
@@ -166,36 +193,45 @@ void on_connected() {
 
 void reconnect_mqtt() {
   while (!client.connected()) {
-    Serial.print("Connecting to MQTT broker...");
+    Serial.println("Connecting MQTT");
+    status_mqtt = "...";
+    redraw_display();
 
     if (client.connect("greenhouse", MQTT_USER, MQTT_PASSWORD)) {
-      Serial.println("connected");
+      status_mqtt = "OK";
+      redraw_display();
+      Serial.println("MQTT connected");
 
       on_connected();
     } else {
-      Serial.println("failed, rc=" + String(client.state()) + " try again in 5 seconds");
+      status_mqtt = "FAIL";
+      redraw_display();
+      Serial.println("MQTT connect failed, will retry in 5 seconds");
       delay(5000);
     }
   }
 }
 
 void setup_wifi() {
-  Serial.print("Connecting to " + String(WIFI_SSID) + " ");
-
+  Serial.println("Starting wifi...");
+  status_wifi = "...";
+  redraw_display();
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
+  int i = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
+    redraw_display();
+    delay(100);
+    i++;
   }
 
-  Serial.println("connected as " + WiFi.localIP());
+  status_wifi = "OK";
+  redraw_display();
+  Serial.println("Wifi started");
 }
 
 void setup_mqtt() {
-  Serial.print("MQTT max packet size: ");
-  Serial.println(MQTT_MAX_PACKET_SIZE);
   client.setServer(MQTT_SERVER, MQTT_PORT);
   client.setCallback(on_message);
 }
@@ -234,23 +270,17 @@ void setup_hardware() {
   attachInterrupt(digitalPinToInterrupt(WATER_COUNTER2_PIN), water2_pulse_received, FALLING);
 }
 
+
 void setup_display() {
   u8g2.begin();
   u8g2.setFont(u8g2_font_6x10_tf);
-
-  u8g2.firstPage();
-  do {
-    u8g2.setCursor(0, 9);
-    u8g2.print("Boot...");
-  } while ( u8g2.nextPage() );
+  redraw_display();
 }
-
 
 void setup() {
   setup_display();
   Serial.begin(115200);
-  delay(100);
-  Serial.println();
+  Serial.println("");
   setup_hardware();
   setup_wifi();
   setup_mqtt();
