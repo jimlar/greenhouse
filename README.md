@@ -9,7 +9,7 @@ Shopping list
 
 * 2 [Water values](https://www.adafruit.com/products/997)
 * 2 [Liquid flow meters](https://www.adafruit.com/products/833)
-* 2 TIP120
+* 2 TIP120 darlington transistors
 * 2 1N4007 diodes
 * 2 1KOhm resistors
 * A DHT21 sensor, I use the AM2301
