@@ -183,6 +183,7 @@ void on_message(char* topic, byte* payload, unsigned int length) {
   }
 
   free(pl);
+  redraw_display();
 }
 
 void on_connected() {
