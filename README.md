@@ -27,3 +27,16 @@ Programming
 -----------
 * Copy settings_template.h to settings.h and edit with your settings for WIFI and MQTT.
 * Upload to wemos with your [PlatformIO](http://platformio.org/)
+
+
+Enclosure
+---------
+8-pin connector:
+1. +12v
+2. 3.3v
+3. Flow sensor 1 - D3
+4. Flow sensor 2 - D7
+5. Water valve 1 - D8 TIP 120
+6. Water valve 1 - D5 TIP 120
+7. GND
+8. GND
